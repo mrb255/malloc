@@ -3,29 +3,39 @@
 #include "FreeBlockLList.h"
 #include "util.h"
 
-void Init_FBR(struct FreeBlockRecord *record, struct LListRecord *llist, struct FreeBlockRecord *prev, struct FreeBlockRecord *next, size_t size_of_chunk)
+void Init_FBR(struct FreeBlockRecord *record, struct LListRecord *llist, struct FreeBlockRecord *prev, struct FreeBlockRecord *next, size_t size_of_entire_block)
 {
-    die_if_false(size_of_chunk >= MIN_BLOCK_SIZE, "Cannot init FBR with size that small\n");
-    record->size = size_of_chunk - sizeof(size_t);
+    die_if_false(size_of_entire_block >= sizeof(struct FreeBlockRecord), "Cannot init FBR with size that small\n");
+    record->data_size = size_of_entire_block - sizeof(size_t);
+    write_int(STDERR_FILENO, record->data_size, 10, 1);
+    die_if_false(record->data_size >= MIN_BLOCK_SIZE, "Init_FBR: data_size error\n");
     Splice_Between(record, llist, prev, next);
 }
 
 //returns true if a split was actually performed
 //wanted_size is the minimum value of size this FBR will have afterwards
 //size may be slightly larger than requested
-bool Split_Record(struct FreeBlockRecord *record, struct LListRecord *llist, size_t wanted_size)
+bool Split_Record(struct FreeBlockRecord *record, struct LListRecord *llist, size_t wanted_data_size)
 {
-    if(wanted_size <= record->size && wanted_size < MIN_BLOCK_SIZE) return false;
-    if(wanted_size < MIN_BLOCK_SIZE) wanted_size = MIN_BLOCK_SIZE;
+    //if(wanted_data_size <= record->data_size && wanted_data_size < MIN_BLOCK_SIZE) {write_string(STDERR_FILENO, "test\n", 5); return false;}
+    die_if_false(record->data_size >= MIN_BLOCK_SIZE, "Split_record: data_size error\n");
+    if(wanted_data_size < MIN_BLOCK_SIZE) wanted_data_size = MIN_BLOCK_SIZE;
     die_if_false(record, "Split_Record: FBR is NULL\n");
-    die_if_false(record->size >= wanted_size, "Split_Record: Cannot grow FBR by splitting it in two\n");
+    die_if_false(record->data_size >= wanted_data_size, "Split_Record: Cannot grow FBR by splitting it in two\n");
 
-    if(record->size == wanted_size) return false; //Nothing to do
-    if(record->size - wanted_size <= MIN_BLOCK_SIZE * 2) return false; //This FBR is too small to split, must be used as is
+    if(record->data_size == wanted_data_size) {write_string(STDERR_FILENO, "Split_Record: wanted size is current size\n", 50); return false;} //Nothing to do
+    if(record->data_size < sizeof(struct FreeBlockRecord) - sizeof(size_t)) {write_string(STDERR_FILENO, "Split_Record: record is too small to split in any way\n", 59); return false;}
+    if(record->data_size - wanted_data_size < sizeof(struct FreeBlockRecord)) {write_string(STDERR_FILENO, "Split_Record: cannot fit new FBR in leftover memory\n", 50); return false;}
+    //if(record->data_size - wanted_data_size <= MIN_BLOCK_SIZE * 2) {write_string(STDERR_FILENO, "Split_Record: record is too small to split\n", 50); return false;} //This FBR is too small to split, must be used as is
 
     //Actually split the record
-    Init_FBR(((void*) record) + wanted_size + sizeof(size_t), llist, record, record->next, record->size - wanted_size);
-    record->size = wanted_size;
+    write_string(STDERR_FILENO, "Splitting record into sizes ", 50);
+    write_int(STDERR_FILENO, wanted_data_size, 10 ,1);
+    write_string(STDERR_FILENO, " ", 1);
+    write_int(STDERR_FILENO, record->data_size - wanted_data_size, 10 ,1);
+    write_string(STDERR_FILENO, "\n", 1);
+    Init_FBR(((void*) record) + wanted_data_size + sizeof(size_t), llist, record, record->next, record->data_size - wanted_data_size);
+    record->data_size = wanted_data_size;
     return true;
 }
 
@@ -39,10 +49,10 @@ struct FreeBlockRecord *Coalesce_If_Possible(struct FreeBlockRecord *record, str
         die_if_false(record->next->prev == record, "Link Error\n");
         die_if_false(record < record->next, "Ordering error, next is behind this record\n");
 
-        if((void*) record->next - record->size - sizeof(size_t) == record)
+        if((void*) record->next - record->data_size - sizeof(size_t) == record)
         {
             write_string(STDERR_FILENO, "coalase right\n", 50);
-            record->size += record->next->size + sizeof(size_t);
+            record->data_size += record->next->data_size + sizeof(size_t);
             Unlink_From_LList(record->next, llist);
         }
     }
@@ -51,15 +61,15 @@ struct FreeBlockRecord *Coalesce_If_Possible(struct FreeBlockRecord *record, str
         die_if_false(record->prev->next == record, "Link Error\n");
         die_if_false(record > record->prev, "Ordering error, prev is ahead of this record\n");
 
-        if((void*) record->prev + record->prev->size + sizeof(size_t) == record)
+        if((void*) record->prev + record->prev->data_size + sizeof(size_t) == record)
         {
             write_string(STDERR_FILENO, "coalase left\n", 50);
             result = record->prev;
-            record->prev->size += record->size + sizeof(size_t);
+            record->prev->data_size += record->data_size + sizeof(size_t);
             Unlink_From_LList(record, llist);
         }
     }
-    die_if_false(!(llist->size>1) || result->prev || result->next, "link error\n");
+    die_if_false(!(llist->length>1) || result->prev || result->next, "link error\n");
     return result;
 }
 
@@ -77,8 +87,8 @@ void Splice_Between(struct FreeBlockRecord *record, struct LListRecord *llist, s
     if(right) right->prev = record;
     else llist->tail = record;
 
-    llist->size++;
-    die_if_false(!(llist->size>1) || (record->prev || record->next), "Splice_between: link error\n");
+    llist->length++;
+    die_if_false(!(llist->length>1) || (record->prev || record->next), "Splice_between: link error\n");
 }
 
 void Unlink_From_LList(struct FreeBlockRecord *record, struct LListRecord *llist)
@@ -105,7 +115,7 @@ void Unlink_From_LList(struct FreeBlockRecord *record, struct LListRecord *llist
         prev->next = next;
         record->prev = NULL;
     }
-    llist->size--;
-    if(prev) die_if_false(!(llist->size>1) || (prev->prev || prev->next), "Unlink_From_LList: link error\n");
-    if(next) die_if_false(!(llist->size>1) || (next->prev || next->next), "Unlink_From_LList: link error\n");
+    llist->length--;
+    if(prev) die_if_false(!(llist->length>1) || (prev->prev || prev->next), "Unlink_From_LList: link error\n");
+    if(next) die_if_false(!(llist->length>1) || (next->prev || next->next), "Unlink_From_LList: link error\n");
 }

@@ -6,35 +6,6 @@
 #include "util.h"
 #include <stdio.h>
 
-void hexDump (void *addr, int len) {
-    int i;
-    unsigned char buff[17];       // stores the ASCII data
-    unsigned char *pc = addr;     // cast to make the code cleaner.
-
-    for (i = 0; i < len; i++) {
-        if ((i % 16) == 0) {
-            if (i != 0)
-                printf ("  %s\n", buff);
-            printf ("  %04x ", i);
-        }
-
-        printf (" %02x", pc[i]);
-
-        if ((pc[i] < 0x20) || (pc[i] > 0x7e))
-            buff[i % 16] = '.';
-        else
-            buff[i % 16] = pc[i];
-        buff[(i % 16) + 1] = '\0';
-    }
-
-    while ((i % 16) != 0) {
-        printf ("   ");
-        i++;
-    }
-
-    printf ("  %s\n", buff);
-}
-
 #define TEST_SIZE 500
 int main()
 {
@@ -45,6 +16,7 @@ int main()
     unsigned long *d = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long));
     die_if_false(d, "Alloc for d failed\n");
     *d = 0xDEADC0DEDEADC0DE;
+    hexDump(mem, TEST_SIZE);
     unsigned long *e = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long) * 10);
     die_if_false(e, "Alloc for e failed\n");
     for(int n = 0; n < 10; n++)
@@ -52,18 +24,22 @@ int main()
     unsigned long *f = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long));
     die_if_false(f, "Alloc for f failed\n");
     *f = 0xF00DBEE4F00dBEE4;
-    printf("\n");
-    hexDump(mem, TEST_SIZE);
+    unsigned long *g = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long));
+    die_if_false(g, "Alloc for g failed\n");
+    *g = 0xF00DBEE4F00dBEE4;
+    //printf("\n");
+    //hexDump(mem, TEST_SIZE);
 
-    printf("e free\n");
+    //printf("e free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, e);
-    hexDump(mem, TEST_SIZE);
+    //hexDump(mem, TEST_SIZE);
 
-    printf("d free\n");
+    //printf("d free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, d);
-    hexDump(mem, TEST_SIZE);
-    printf("f free\n");
+    //hexDump(mem, TEST_SIZE);
+    //printf("f free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, f);
+    Free_Mem_Chunk((struct LListRecord *) mem, g);
     hexDump(mem, TEST_SIZE);
 
     return 0;
@@ -74,7 +50,7 @@ void Init_LList(struct LListRecord *llist, size_t size_of_entire_mmap_chunk)
     die_if_false(llist, NULL);
     die_if_false(size_of_entire_mmap_chunk >= sizeof(struct LListRecord) + sizeof(struct FreeBlockRecord), "Space too small for LListRecord\n");
 
-    llist->size = 0;
+    llist->length = 0;
     llist->head = llist->tail = NULL;
     llist->size_of_mmap_chunk = size_of_entire_mmap_chunk;
 
@@ -87,6 +63,7 @@ void Init_LList(struct LListRecord *llist, size_t size_of_entire_mmap_chunk)
 
 void *Alloc_Mem_Chunk_Of_Size(struct LListRecord *record, size_t size)
 {
+    die_if_false(record, "Alloc_Mem_Chunk_Of_Size: record is NULL\n");
     struct FreeBlockRecord *chunk = Find_Block_With_Enough_Space(record, size);
 
     if(!chunk) return NULL;
@@ -109,11 +86,11 @@ struct FreeBlockRecord *Find_Block_With_Enough_Space(struct LListRecord *record,
 {
     die_if_false(record, "Find_Block_With_Enough_Space: record is NULL\n");
 
-    if(!record->head) return NULL;
+    if(record->length == 0) {/*write_string(STDERR_FILENO, "Find_Block_With_enough_Space: no blocks\n", 50); */return NULL;}
     struct FreeBlockRecord *fb_record = record->head;
     do
     {
-        if(fb_record->size >= size)
+        if(fb_record->data_size >= size)
             return fb_record;
         else
             fb_record = fb_record->next;

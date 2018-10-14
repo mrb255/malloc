@@ -24,9 +24,10 @@ bool read_file(int fd, void *buffer, size_t num_bytes, ssize_t *num_bytes_read);
 bool write_file(int fd, void *buffer, size_t size);
 //Writes a string to a file, with no_longer_than being a safety incase the null terminator is missing
 bool write_string(int fd, const char *s, size_t no_longer_than);
-void convert_integer(char *str, long n);
+void convert_integer(char *str, long n, int base, int min_length);
 //As above, but writes num_strings in one call
 bool write_strings(int fd, size_t no_longer_than, int num_strings, ...);
+bool write_int(int fd, long num, int base, int min_length);
 //Opens pipes
 bool open_pipes(int *in_fd, int *out_fd);
 //dup2 wrapper
@@ -38,5 +39,8 @@ bool exec_checked(const char *file, char *const argv[]);
 
 //Duplicates strncmp
 int comp_strings(const char *str1, const char *str2, int no_longer_than);
+char *strcpy(char *destination, const char *source);
+
+void hexDump (void *addr, int len);
 
 #endif

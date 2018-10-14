@@ -54,6 +54,7 @@
 #define _GNU_SOURCE
 
 #include <stddef.h>
+#include <errno.h>
 #include <sys/mman.h>
 #include "FreeBlockLList.h"
 #include "FreeBlockRecord.h"
@@ -194,7 +195,7 @@ size_t Calculate_MMap_Size(size_t requested_size)
   return requested_size;
 }
 
-struct LListRecord *Find_LList_Containing_FBR(void *fbr)
+bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
 {
   void *block_start;
   void *block_end;
@@ -202,17 +203,21 @@ struct LListRecord *Find_LList_Containing_FBR(void *fbr)
   {
     if(!llists[n]) continue;
     block_start = (void*) llists[n] + sizeof(struct LListRecord);
-    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk;
+    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk;  //TODO: too inclusive?
     if(block_start <= fbr && fbr <= block_end)
-      return llists[n];
+    {
+      *index = n;
+      return true;
+      //return llists[n];
+    }
   }
 
-  char buffer[50], buffer2[50], buffer3[50], buffer4[50], buffer5[50];
-  convert_integer(buffer, (int) fbr);
-  convert_integer(buffer2, (int) block_start);
-  convert_integer(buffer3, (int) block_end);
+  char buffer[50], buffer2[50], buffer3[50];
+  convert_integer(buffer, (int) fbr, 10, 0);
+  convert_integer(buffer2, (int) block_start, 10, 0);
+  convert_integer(buffer3, (int) block_end, 10, 0);
   write_strings(STDERR_FILENO, 100, 7, "Pointers: ", buffer, " ", buffer2, " ", buffer3, "\n");
-  return NULL;
+  return false;
 }
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
@@ -227,11 +232,11 @@ struct LListRecord *Find_LList_Containing_FBR(void *fbr)
 void __free_impl(void *);
 
 void *__malloc_impl(size_t size) {
-
+  if(size == 0) return NULL;
   char buffer3[50] = {0};
   if(size % 8 != 0)
     size = size + 8 - (size % 8);
-  convert_integer(buffer3, size);
+  convert_integer(buffer3, size, 10, 0);
   write_strings(STDERR_FILENO, 100, 3, "Alloc of size: ", buffer3, "\n");
 
   void *retvalue;
@@ -244,14 +249,14 @@ void *__malloc_impl(size_t size) {
 
   char buffer[50] = {0};
   char buffer2[50] = {0};
-  convert_integer(buffer, calculated_size);
-  convert_integer(buffer2, size);
+  convert_integer(buffer, calculated_size, 10, 0);
+  convert_integer(buffer2, size, 10, 0);
   write_strings(STDERR_FILENO, 100, 5, "Calculated size: ", buffer, " size: ", buffer2, "\n");
 
   llists[index] = mmap(NULL, calculated_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   die_if_false(llists[index], "mmap return NULL\n");
   Init_LList(llists[index], calculated_size);
-  die_if_false(llists[index]->size == 1, "bad init\n");
+  die_if_false(llists[index]->length == 1, "bad init\n");
   retvalue = Alloc_Mem_Chunk_Of_Size(llists[index], size);
   die_if_false(retvalue, "retvalue is NULL\n");
   return retvalue;
@@ -280,8 +285,8 @@ void *__realloc_impl(void *ptr, size_t size) {
 
   char buffer[50] = {0};
   char buffer2[50] = {0};
-  convert_integer(buffer, size);
-  convert_integer(buffer2, *old_size);
+  convert_integer(buffer, size, 10, 0);
+  convert_integer(buffer2, *old_size, 10, 0);
   write_strings(STDERR_FILENO, 100, 5, "Sizes: ", buffer, " ", buffer2, "\n");
   mem = __malloc_impl(size);
   __memcpy(mem, ptr, MIN(*old_size, size)); //TODO: what if size is smaller?
@@ -293,21 +298,23 @@ void __free_impl(void *ptr) {
   if(!ptr) return;
 
   struct FreeBlockRecord *fbr = ptr - sizeof(size_t);
-  struct LListRecord *llist = Find_LList_Containing_FBR(fbr);
+  size_t llist_index;
+  
+  die_if_false(Find_Index_Of_LList_Containing_FBR(fbr, &llist_index), "__free_impl: Cannot find containing llist\n");
 
-  die_if_false(llist, "__free_impl: Cannot find containing llist\n");
-
-  Free_Mem_Chunk(llist, ptr);
-  if(llist->size == 1)
+  Free_Mem_Chunk(llists[llist_index], ptr);
+  if(llists[llist_index]->length == 1)
   {
-    if(llist->size_of_mmap_chunk - llist->head->size - sizeof(size_t) == sizeof(struct LListRecord))
+    if(llists[llist_index]->size_of_mmap_chunk - llists[llist_index]->head->data_size - sizeof(size_t) == sizeof(struct LListRecord))
     {
-      if(munmap(llist, llist->size_of_mmap_chunk) == -1)
+      write_string(STDERR_FILENO, "Unmapping empty llist\n", 50);
+      //hexDump(llists[llist_index], llists[llist_index]->size_of_mmap_chunk);
+      if(munmap(llists[llist_index], llists[llist_index]->size_of_mmap_chunk) == -1)
       {
         write_strings(STDERR_FILENO, 100, 3, "munmap failed: ", strerror(errno), "\n");
         _exit(1);
       }
-      llist = NULL;
+      llists[llist_index] = NULL;
     }
   }
 }

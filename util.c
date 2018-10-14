@@ -112,7 +112,8 @@ bool write_strings(int fd, size_t no_longer_than, int num_strings, ...)
 	return return_value;
 }
 
-void convert_integer(char *str, long n) {
+//really only supports base 10 and 16
+void convert_integer(char *str, long n, int base, int min_length) {
 
     char tmp[100];
 
@@ -125,7 +126,7 @@ void convert_integer(char *str, long n) {
 
     if (n < 0) {
         str[0] = '-';
-        convert_integer(str + 1, -n);
+        convert_integer(str + 1, -n, base, min_length);
         return;
     }
 
@@ -133,8 +134,9 @@ void convert_integer(char *str, long n) {
     i = 0;
 
     while (r != 0) {
-        tmp[i] = '0' + (r % 10);
-        r /= 10;
+        tmp[i] = '0' + (r % base);
+		if(tmp[i] > '9') tmp[i] += 7;
+        r /= base;
         i++;
     }
 
@@ -143,6 +145,37 @@ void convert_integer(char *str, long n) {
     }
 
     str[k] = '\0';
+
+	size_t str_len = strlen(str);
+	if(str_len < min_length)
+	{
+		char buffer[100];
+		size_t diff = min_length - str_len;
+		strcpy(buffer, str);
+		strcpy(str+diff, buffer);
+		for(size_t n = 0; n < diff; n++)
+			str[n] = '0';
+	}
+}
+
+char *strcpy(char *destination, const char *source)
+{
+	char *original = destination;
+	while(*source)
+	{
+		*destination = *source;
+		destination++;
+		source++;
+	}
+	*destination = *source;
+	return original;
+}
+
+bool write_int(int fd, long num, int base, int min_length)
+{
+	char buffer[100];
+	convert_integer(buffer, num, base, min_length);
+	return write_string(fd, buffer, 100);
 }
 
 int comp_strings(const char *str1, const char *str2, int no_longer_than)
@@ -202,4 +235,41 @@ bool exec_checked(const char *file, char *const argv[])
 	execvp(file, argv);
 	write_strings(STDERR_FILENO, 1024, 3, "Failed to invoke execvp: ", strerror(errno), "\n");
 	return false;
+}
+
+void hexDump (void *addr, int len) {
+    int i;
+    unsigned char buff[17];       // stores the ASCII data
+    unsigned char *pc = addr;     // cast to make the code cleaner.
+
+    for (i = 0; i < len; i++) {
+        if ((i % 16) == 0) {
+            if (i != 0)
+                write_strings(STDERR_FILENO, 17, 3, "  ", buff, "\n");
+                //printf ("  %s\n", buff);
+            write_strings(STDERR_FILENO, 20, 1, "  ");
+            write_int(STDERR_FILENO, i, 16, 4);
+            write_strings(STDERR_FILENO, 20, 1, " ");
+            //printf ("  %04x ", i);
+        }
+
+        //printf (" %02x", pc[i]);
+        write_strings(STDERR_FILENO, 1, 1, " ");
+        write_int(STDERR_FILENO, pc[i], 16, 2);
+
+        if ((pc[i] < 0x20) || (pc[i] > 0x7e))
+            buff[i % 16] = '.';
+        else
+            buff[i % 16] = pc[i];
+        buff[(i % 16) + 1] = '\0';
+    }
+
+    while ((i % 16) != 0) {
+        write_string(STDERR_FILENO, "   ", 5);
+        //printf ("   ");
+        i++;
+    }
+
+    //printf ("  %s\n", buff);
+    write_strings(STDERR_FILENO, 17, 3, "  ", buff, "\n");
 }

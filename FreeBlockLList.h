@@ -9,7 +9,7 @@ struct LListRecord
 {
     struct FreeBlockRecord *head;
     struct FreeBlockRecord *tail;
-    size_t size;    //num records
+    size_t length;    //num records
     size_t size_of_mmap_chunk;
 };
 
