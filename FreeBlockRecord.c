@@ -21,7 +21,7 @@ bool Split_Record(struct FreeBlockRecord *record, struct LListRecord *llist, siz
     die_if_false(record->size >= wanted_size, "Split_Record: Cannot grow FBR by splitting it in two\n");
 
     if(record->size == wanted_size) return false; //Nothing to do
-    if(record->size <= MIN_BLOCK_SIZE * 2) return false; //This FBR is too small to split, must be used as is
+    if(record->size - wanted_size <= MIN_BLOCK_SIZE * 2) return false; //This FBR is too small to split, must be used as is
 
     //Actually split the record
     Init_FBR(((void*) record) + wanted_size + sizeof(size_t), llist, record, record->next, record->size - wanted_size);

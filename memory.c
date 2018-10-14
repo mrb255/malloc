@@ -136,9 +136,9 @@ void *malloc(size_t size) {
   void *ptr;
 
   pthread_mutex_lock(&memory_management_lock);
+  __memory_print_debug("malloc(0x%zx) = %p\n", size, ptr);
   ptr = __malloc_impl(size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("malloc(0x%zx) = %p\n", size, ptr);
   return ptr;
 }
 
@@ -146,9 +146,9 @@ void *calloc(size_t nmemb, size_t size) {
   void *ptr;
 
   pthread_mutex_lock(&memory_management_lock);
+  __memory_print_debug("calloc(0x%zx, 0x%zx) = %p\n", nmemb, size, ptr);
   ptr = __calloc_impl(nmemb, size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("calloc(0x%zx, 0x%zx) = %p\n", nmemb, size, ptr);
   return ptr;
 }
 
@@ -156,16 +156,16 @@ void *realloc(void *old_ptr, size_t size) {
   void *ptr;
 
   pthread_mutex_lock(&memory_management_lock);
+  __memory_print_debug("realloc(%p, 0x%zx) = %p\n", old_ptr, size, ptr);
   ptr = __realloc_impl(old_ptr, size);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("realloc(%p, 0x%zx) = %p\n", old_ptr, size, ptr);
   return ptr;
 }
 
 void free(void *ptr) {
   pthread_mutex_lock(&memory_management_lock);
+  __memory_print_debug("free(%p)\n", ptr);
   __free_impl(ptr);
   pthread_mutex_unlock(&memory_management_lock);
-  __memory_print_debug("free(%p)\n", ptr);
 }
 

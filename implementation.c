@@ -298,7 +298,18 @@ void __free_impl(void *ptr) {
   die_if_false(llist, "__free_impl: Cannot find containing llist\n");
 
   Free_Mem_Chunk(llist, ptr);
-  //TODO: unmap
+  if(llist->size == 1)
+  {
+    if(llist->size_of_mmap_chunk - llist->head->size - sizeof(size_t) == sizeof(struct LListRecord))
+    {
+      if(munmap(llist, llist->size_of_mmap_chunk) == -1)
+      {
+        write_strings(STDERR_FILENO, 100, 3, "munmap failed: ", strerror(errno), "\n");
+        _exit(1);
+      }
+      llist = NULL;
+    }
+  }
 }
 
 /* End of the actual malloc/calloc/realloc/free functions */
