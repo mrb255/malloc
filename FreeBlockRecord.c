@@ -24,8 +24,8 @@ bool Split_Record(struct FreeBlockRecord *record, struct LListRecord *llist, siz
     die_if_false(record->data_size >= wanted_data_size, "Split_Record: Cannot grow FBR by splitting it in two\n");
 
     if(record->data_size == wanted_data_size) {write_string(STDERR_FILENO, "Split_Record: wanted size is current size\n", 50); return false;} //Nothing to do
-    if(record->data_size < sizeof(struct FreeBlockRecord) - sizeof(size_t)) {write_string(STDERR_FILENO, "Split_Record: record is too small to split in any way\n", 59); return false;}
-    if(record->data_size - wanted_data_size < sizeof(struct FreeBlockRecord)) {write_string(STDERR_FILENO, "Split_Record: cannot fit new FBR in leftover memory\n", 50); return false;}
+    if(record->data_size < sizeof(struct FreeBlockRecord) - sizeof(size_t)) {write_string(STDERR_FILENO, "Split_Record: record is too small to split in any way\n", 70); return false;}
+    if(record->data_size - wanted_data_size < sizeof(struct FreeBlockRecord)) {write_string(STDERR_FILENO, "Split_Record: cannot fit new FBR in leftover memory\n", 70); return false;}
     //if(record->data_size - wanted_data_size <= MIN_BLOCK_SIZE * 2) {write_string(STDERR_FILENO, "Split_Record: record is too small to split\n", 50); return false;} //This FBR is too small to split, must be used as is
 
     //Actually split the record
@@ -51,7 +51,7 @@ struct FreeBlockRecord *Coalesce_If_Possible(struct FreeBlockRecord *record, str
 
         if((void*) record->next - record->data_size - sizeof(size_t) == record)
         {
-            write_string(STDERR_FILENO, "coalase right\n", 50);
+            //write_string(STDERR_FILENO, "coalase right\n", 50);
             record->data_size += record->next->data_size + sizeof(size_t);
             Unlink_From_LList(record->next, llist);
         }
@@ -63,7 +63,7 @@ struct FreeBlockRecord *Coalesce_If_Possible(struct FreeBlockRecord *record, str
 
         if((void*) record->prev + record->prev->data_size + sizeof(size_t) == record)
         {
-            write_string(STDERR_FILENO, "coalase left\n", 50);
+            //write_string(STDERR_FILENO, "coalase left\n", 50);
             result = record->prev;
             record->prev->data_size += record->data_size + sizeof(size_t);
             Unlink_From_LList(record, llist);

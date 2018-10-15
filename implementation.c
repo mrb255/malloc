@@ -158,7 +158,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 
 */
 
-#define MAX_LLISTS 5000
+#define MAX_LLISTS 500000
 struct LListRecord *llists[MAX_LLISTS] = {0};
 
 size_t Get_Empty_Index()
@@ -203,7 +203,7 @@ bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
   {
     if(!llists[n]) continue;
     block_start = (void*) llists[n] + sizeof(struct LListRecord);
-    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk;  //TODO: too inclusive?
+    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk - sizeof(struct FreeBlockRecord);
     if(block_start <= fbr && fbr <= block_end)
     {
       *index = n;
@@ -212,11 +212,19 @@ bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
     }
   }
 
-  char buffer[50], buffer2[50], buffer3[50];
-  convert_integer(buffer, (int) fbr, 10, 0);
-  convert_integer(buffer2, (int) block_start, 10, 0);
-  convert_integer(buffer3, (int) block_end, 10, 0);
-  write_strings(STDERR_FILENO, 100, 7, "Pointers: ", buffer, " ", buffer2, " ", buffer3, "\n");
+  /*for(size_t n = 0; n < MAX_LLISTS; n++)
+  {
+    if(!llists[n]) continue;
+    block_start = (void*) llists[n] + sizeof(struct LListRecord);
+    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk - sizeof(struct FreeBlockRecord);
+    char buffer[50], buffer2[50], buffer3[50], buffer4[50];
+    convert_integer(buffer, (long) fbr, 16, 0);
+    convert_integer(buffer2, (long) block_start, 16, 0);
+    convert_integer(buffer3, (long) block_end, 16, 0);
+    convert_integer(buffer4, n, 10, 1);
+    write_strings(STDERR_FILENO, 100, 9, "N: ", buffer4, " Pointers: ", buffer, " ", buffer2, " ", buffer3, "\n");
+  }*/
+
   return false;
 }
 
@@ -300,7 +308,8 @@ void __free_impl(void *ptr) {
   struct FreeBlockRecord *fbr = ptr - sizeof(size_t);
   size_t llist_index;
   
-  die_if_false(Find_Index_Of_LList_Containing_FBR(fbr, &llist_index), "__free_impl: Cannot find containing llist\n");
+  //die_if_false(Find_Index_Of_LList_Containing_FBR(fbr, &llist_index), "__free_impl: Cannot find containing llist\n");
+  if(!Find_Index_Of_LList_Containing_FBR(fbr, &llist_index)) return;
 
   Free_Mem_Chunk(llists[llist_index], ptr);
   if(llists[llist_index]->length == 1)

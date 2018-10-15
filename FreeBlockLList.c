@@ -24,12 +24,13 @@ int main()
     unsigned long *f = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long));
     die_if_false(f, "Alloc for f failed\n");
     *f = 0xF00DBEE4F00dBEE4;
-    unsigned long *g = Alloc_Mem_Chunk_Of_Size((void *) mem, sizeof(unsigned long));
+    unsigned long *g = Alloc_Mem_Chunk_Of_Size((void *) mem, 300);
     die_if_false(g, "Alloc for g failed\n");
     *g = 0xF00DBEE4F00dBEE4;
     //printf("\n");
     //hexDump(mem, TEST_SIZE);
 
+Free_Mem_Chunk((struct LListRecord *) mem, g);
     //printf("e free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, e);
     //hexDump(mem, TEST_SIZE);
@@ -39,7 +40,7 @@ int main()
     //hexDump(mem, TEST_SIZE);
     //printf("f free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, f);
-    Free_Mem_Chunk((struct LListRecord *) mem, g);
+    
     hexDump(mem, TEST_SIZE);
 
     return 0;
