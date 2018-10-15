@@ -30,7 +30,7 @@ int main()
     //printf("\n");
     //hexDump(mem, TEST_SIZE);
 
-Free_Mem_Chunk((struct LListRecord *) mem, g);
+    Free_Mem_Chunk((struct LListRecord *) mem, g);
     //printf("e free\n");
     Free_Mem_Chunk((struct LListRecord *) mem, e);
     //hexDump(mem, TEST_SIZE);

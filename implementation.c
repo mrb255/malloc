@@ -88,64 +88,6 @@ static void *__memcpy(void *dest, const void *src, size_t n) {
   return dest;
 }
 
-/* Tries to multiply the two size_t arguments a and b.
-
-   If the product holds on a size_t variable, sets the 
-   variable pointed to by c to that product and returns a 
-   non-zero value.
-   
-   Otherwise, does not touch the variable pointed to by c and 
-   returns zero.
-
-   This implementation is kind of naive as it uses a division.
-   If performance is an issue, try to speed it up by avoiding 
-   the division while making sure that it still does the right 
-   thing (which is hard to prove).
-
-*/
-static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
-  size_t t, r, q;
-
-  /* If any of the arguments a and b is zero, everthing works just fine. */
-  if ((a == ((size_t) 0)) ||
-      (a == ((size_t) 0))) {
-    *c = a * b;
-    return 1;
-  }
-
-  /* Here, neither a nor b is zero. 
-
-     We perform the multiplication, which may overflow, i.e. present
-     some modulo-behavior.
-
-  */
-  t = a * b;
-
-  /* Perform Euclidian division on t by a:
-
-     t = a * q + r
-
-     As we are sure that a is non-zero, we are sure
-     that we will not divide by zero.
-
-  */
-  q = t / a;
-  r = t % a;
-
-  /* If the rest r is non-zero, the multiplication overflowed. */
-  if (r != ((size_t) 0)) return 0;
-
-  /* Here the rest r is zero, so we are sure that t = a * q.
-
-     If q is different from b, the multiplication overflowed.
-     Otherwise we are sure that t = a * b.
-
-  */
-  if (q != b) return 0;
-  *c = t;
-  return 1;
-}
-
 /* End of predefined helper functions */
 
 /* Your helper functions 
@@ -184,12 +126,7 @@ inline void *Try_Alloc(size_t size)
     mem = Alloc_Mem_Chunk_Of_Size(*current_llist, size);
     if(mem) return mem;
   }
-  /*for(size_t n = 0; n < MAX_LLISTS; n++)
-  {
-    if(!llists[n]) continue;
-    mem = Alloc_Mem_Chunk_Of_Size(llists[n], size);
-    if(mem) return mem;
-  }*/
+
   return NULL;
 }
 
