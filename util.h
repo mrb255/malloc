@@ -11,7 +11,17 @@
 //Most of these are just wrappers around the system calls
 
 //assert clone, but accepts an optional error string
-void die_if_false(bool condition, const char *error);
+inline void die_if_false(bool condition, const char *error)
+{
+    #ifdef DEBUG
+	if(!condition)
+	{
+		if(error) write_string(STDERR_FILENO, error, 1000);
+        else write_string(STDERR_FILENO, "Condition was false, quitting\n", 50);
+		_exit(1);
+	}
+    #endif
+}
 //Opens a file, sets fd_out to the file descriptor
 bool open_file(const char *path, int oflag, int *fd_out);
 //Closes a file

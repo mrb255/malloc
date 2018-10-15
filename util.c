@@ -5,16 +5,6 @@
 #include <stdarg.h>
 #include "util.h"
 
-void die_if_false(bool condition, const char *error)
-{
-	if(!condition)
-	{
-		if(error) write_string(STDERR_FILENO, error, 1000);
-        else write_string(STDERR_FILENO, "Condition was false, quitting\n", 50);
-		_exit(1);
-	}
-}
-
 bool open_file(const char *path, int oflag, int *fd_out)
 {
 	int ret_value = open(path, oflag, 0666);

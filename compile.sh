@@ -1,2 +1,2 @@
-    gcc -fPIC -c -Wall -g -O0 *.c -lpthread
-    gcc -fPIC -shared -o memory.so *.o -lpthread -lrt -pthread
+gcc -fPIC -c -Wall -O3 *.c -lpthread
+gcc -fPIC -shared -o memory.so *.o -lpthread -lrt -pthread

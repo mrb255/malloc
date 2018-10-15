@@ -7,8 +7,6 @@ void Init_FBR(struct FreeBlockRecord *record, struct LListRecord *llist, struct 
 {
     die_if_false(size_of_entire_block >= sizeof(struct FreeBlockRecord), "Cannot init FBR with size that small\n");
     record->data_size = size_of_entire_block - sizeof(size_t);
-    write_int(STDERR_FILENO, record->data_size, 10, 1);
-    die_if_false(record->data_size >= MIN_BLOCK_SIZE, "Init_FBR: data_size error\n");
     Splice_Between(record, llist, prev, next);
 }
 
@@ -23,17 +21,11 @@ bool Split_Record(struct FreeBlockRecord *record, struct LListRecord *llist, siz
     die_if_false(record, "Split_Record: FBR is NULL\n");
     die_if_false(record->data_size >= wanted_data_size, "Split_Record: Cannot grow FBR by splitting it in two\n");
 
-    if(record->data_size == wanted_data_size) {write_string(STDERR_FILENO, "Split_Record: wanted size is current size\n", 50); return false;} //Nothing to do
-    if(record->data_size < sizeof(struct FreeBlockRecord) - sizeof(size_t)) {write_string(STDERR_FILENO, "Split_Record: record is too small to split in any way\n", 70); return false;}
-    if(record->data_size - wanted_data_size < sizeof(struct FreeBlockRecord)) {write_string(STDERR_FILENO, "Split_Record: cannot fit new FBR in leftover memory\n", 70); return false;}
-    //if(record->data_size - wanted_data_size <= MIN_BLOCK_SIZE * 2) {write_string(STDERR_FILENO, "Split_Record: record is too small to split\n", 50); return false;} //This FBR is too small to split, must be used as is
+    if(record->data_size == wanted_data_size) {/*write_string(STDERR_FILENO, "Split_Record: wanted size is current size\n", 50); */return false;} //Nothing to do
+    if(record->data_size < sizeof(struct FreeBlockRecord) - sizeof(size_t)) {/*write_string(STDERR_FILENO, "Split_Record: record is too small to split in any way\n", 70); */return false;}
+    if(record->data_size - wanted_data_size < sizeof(struct FreeBlockRecord)) {/*write_string(STDERR_FILENO, "Split_Record: cannot fit new FBR in leftover memory\n", 70); */return false;}
 
     //Actually split the record
-    write_string(STDERR_FILENO, "Splitting record into sizes ", 50);
-    write_int(STDERR_FILENO, wanted_data_size, 10 ,1);
-    write_string(STDERR_FILENO, " ", 1);
-    write_int(STDERR_FILENO, record->data_size - wanted_data_size, 10 ,1);
-    write_string(STDERR_FILENO, "\n", 1);
     Init_FBR(((void*) record) + wanted_data_size + sizeof(size_t), llist, record, record->next, record->data_size - wanted_data_size);
     record->data_size = wanted_data_size;
     return true;

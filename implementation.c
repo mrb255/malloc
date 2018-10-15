@@ -161,7 +161,7 @@ static int __try_size_t_multiply(size_t *c, size_t a, size_t b) {
 #define MAX_LLISTS 500000
 struct LListRecord *llists[MAX_LLISTS] = {0};
 
-size_t Get_Empty_Index()
+inline size_t Get_Empty_Index()
 {
   size_t n = 0;
   for(n = 0; n < MAX_LLISTS; n++)
@@ -172,30 +172,39 @@ size_t Get_Empty_Index()
 }
 
 //Try to alloc using existing llists
-void *Try_Alloc(size_t size)
+//Messy pointer math due to the cost of this function (as shown by kcachgrind)
+inline void *Try_Alloc(size_t size)
 {
   void *mem;
-  for(size_t n = 0; n < MAX_LLISTS; n++)
+  struct LListRecord **current_llist;
+  struct LListRecord **past_the_end = llists + MAX_LLISTS;
+  for(current_llist = llists; current_llist < past_the_end; current_llist++)
+  {
+    if(!(*current_llist)) continue;
+    mem = Alloc_Mem_Chunk_Of_Size(*current_llist, size);
+    if(mem) return mem;
+  }
+  /*for(size_t n = 0; n < MAX_LLISTS; n++)
   {
     if(!llists[n]) continue;
     mem = Alloc_Mem_Chunk_Of_Size(llists[n], size);
     if(mem) return mem;
-  }
+  }*/
   return NULL;
 }
 
 #define SIZE_OF_BOOKEEPING (sizeof(struct LListRecord) + sizeof(struct FreeBlockRecord))
+#define DEFAULT_LLIST_SIZE 262144
 
-size_t Calculate_MMap_Size(size_t requested_size)
+inline size_t Calculate_MMap_Size(size_t requested_size)
 {
   requested_size += SIZE_OF_BOOKEEPING;
-  if(requested_size < SIZE_OF_BOOKEEPING * 50)
-    requested_size = SIZE_OF_BOOKEEPING * 50;
-  //TODO: make more efficent
+  if(requested_size < DEFAULT_LLIST_SIZE)
+    requested_size = DEFAULT_LLIST_SIZE;
   return requested_size;
 }
 
-bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
+inline bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
 {
   void *block_start;
   void *block_end;
@@ -208,30 +217,14 @@ bool Find_Index_Of_LList_Containing_FBR(void *fbr, size_t *index)
     {
       *index = n;
       return true;
-      //return llists[n];
     }
   }
-
-  /*for(size_t n = 0; n < MAX_LLISTS; n++)
-  {
-    if(!llists[n]) continue;
-    block_start = (void*) llists[n] + sizeof(struct LListRecord);
-    block_end = (void*) llists[n] + llists[n]->size_of_mmap_chunk - sizeof(struct FreeBlockRecord);
-    char buffer[50], buffer2[50], buffer3[50], buffer4[50];
-    convert_integer(buffer, (long) fbr, 16, 0);
-    convert_integer(buffer2, (long) block_start, 16, 0);
-    convert_integer(buffer3, (long) block_end, 16, 0);
-    convert_integer(buffer4, n, 10, 1);
-    write_strings(STDERR_FILENO, 100, 9, "N: ", buffer4, " Pointers: ", buffer, " ", buffer2, " ", buffer3, "\n");
-  }*/
 
   return false;
 }
 
 #define MAX(X, Y) (((X) < (Y)) ? (Y) : (X))
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-
-//#define MIN_MMAP_SPACE_FOR_LLIST (sizeof(struct LListRecord) + sizeof(struct FreeBlockRecord))
 
 /* End of your helper functions */
 
@@ -241,30 +234,20 @@ void __free_impl(void *);
 
 void *__malloc_impl(size_t size) {
   if(size == 0) return NULL;
-  char buffer3[50] = {0};
   if(size % 8 != 0)
     size = size + 8 - (size % 8);
-  convert_integer(buffer3, size, 10, 0);
-  write_strings(STDERR_FILENO, 100, 3, "Alloc of size: ", buffer3, "\n");
 
   void *retvalue;
   retvalue = Try_Alloc(size);
   if(retvalue) return retvalue;
-        write_string(STDERR_FILENO, "test\n", 10);
 
+  write_string(STDERR_FILENO, "Mapping new llist\n", 50);
   size_t index = Get_Empty_Index();
-  size_t calculated_size = Calculate_MMap_Size(size); //MAX(size + , MIN_MMAP_SPACE_FOR_LLIST);
-
-  char buffer[50] = {0};
-  char buffer2[50] = {0};
-  convert_integer(buffer, calculated_size, 10, 0);
-  convert_integer(buffer2, size, 10, 0);
-  write_strings(STDERR_FILENO, 100, 5, "Calculated size: ", buffer, " size: ", buffer2, "\n");
+  size_t calculated_size = Calculate_MMap_Size(size);
 
   llists[index] = mmap(NULL, calculated_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   die_if_false(llists[index], "mmap return NULL\n");
   Init_LList(llists[index], calculated_size);
-  die_if_false(llists[index]->length == 1, "bad init\n");
   retvalue = Alloc_Mem_Chunk_Of_Size(llists[index], size);
   die_if_false(retvalue, "retvalue is NULL\n");
   return retvalue;
@@ -291,13 +274,8 @@ void *__realloc_impl(void *ptr, size_t size) {
   
   size_t *old_size = ptr - sizeof(size_t);
 
-  char buffer[50] = {0};
-  char buffer2[50] = {0};
-  convert_integer(buffer, size, 10, 0);
-  convert_integer(buffer2, *old_size, 10, 0);
-  write_strings(STDERR_FILENO, 100, 5, "Sizes: ", buffer, " ", buffer2, "\n");
   mem = __malloc_impl(size);
-  __memcpy(mem, ptr, MIN(*old_size, size)); //TODO: what if size is smaller?
+  __memcpy(mem, ptr, MIN(*old_size, size));
   __free_impl(ptr);
   return mem;
 }
@@ -308,8 +286,7 @@ void __free_impl(void *ptr) {
   struct FreeBlockRecord *fbr = ptr - sizeof(size_t);
   size_t llist_index;
   
-  //die_if_false(Find_Index_Of_LList_Containing_FBR(fbr, &llist_index), "__free_impl: Cannot find containing llist\n");
-  if(!Find_Index_Of_LList_Containing_FBR(fbr, &llist_index)) return;
+  if(!Find_Index_Of_LList_Containing_FBR(fbr, &llist_index)) {write_string(STDERR_FILENO, "__free_impl: Cannot find llist containing pointer. Ignoring.\n", 80); return;}
 
   Free_Mem_Chunk(llists[llist_index], ptr);
   if(llists[llist_index]->length == 1)
@@ -317,12 +294,7 @@ void __free_impl(void *ptr) {
     if(llists[llist_index]->size_of_mmap_chunk - llists[llist_index]->head->data_size - sizeof(size_t) == sizeof(struct LListRecord))
     {
       write_string(STDERR_FILENO, "Unmapping empty llist\n", 50);
-      //hexDump(llists[llist_index], llists[llist_index]->size_of_mmap_chunk);
-      if(munmap(llists[llist_index], llists[llist_index]->size_of_mmap_chunk) == -1)
-      {
-        write_strings(STDERR_FILENO, 100, 3, "munmap failed: ", strerror(errno), "\n");
-        _exit(1);
-      }
+      munmap(llists[llist_index], llists[llist_index]->size_of_mmap_chunk);
       llists[llist_index] = NULL;
     }
   }
